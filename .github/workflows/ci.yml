@@ -1,0 +1,26 @@
+name: CI Pipeline
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install flask psycopg2-binary
+      
+      - name: Run tests
+        run: |
+          .venv/bin/python -c "from flask import Flask; print('✅ Flask OK')"
+          .venv/bin/python -c "import psycopg2; print('✅ psycopg2-binary OK')"
