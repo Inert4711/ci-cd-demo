@@ -1,0 +1,106 @@
+name: Advanced CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+  
+  security-scan:
+    needs: test-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Bandit results
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bandit
+          key: ${{ runner.os }}-bandit-${{ hashFiles('**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-bandit-
+            
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit security scan
+        run: bandit -r . -f json -o bandit_report.json
+  
+  build:
+    needs: test-matrix
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build package
+        run: |
+          echo "Building package..."
+          tar -czf dist/package.tar.gz .
+          echo "version: ${{ github.sha }}" > dist/metadata.txt
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-package
+          path: dist/
+  
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-package
+          path: dist/
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          echo "🚀 Deploying version: $(cat dist/metadata.txt)"
+  
+  deploy-prod:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://you-production.com
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-package
+          path: dist/
+      
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          echo "🚀 Deploying version: $(cat dist/metadata.txt)"
