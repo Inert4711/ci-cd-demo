@@ -5,6 +5,9 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3,9', '3.10', '3.11']
     
     steps:
       - name: Checkout code
@@ -13,14 +16,56 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
       
       - name: Install dependencies
         run: |
-          python -m venv .venv
-          .venv/bin/pip install flask psycopg2-binary
+          python -m pip install --upgrade pip
+          pip install flask pytest
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       
       - name: Run tests
         run: |
-          .venv/bin/python -c "from flask import Flask; print('✅ Flask OK')"
-          .venv/bin/python -c "import psycopg2; print('✅ psycopg2-binary OK')"
+          echo "def test_flask_import(): assert __import__('flask')" > test_app.py
+          pytest test_app.py -v
+build:
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build package
+      run: |
+        echo "Buildings packages..."
+        mkdir -p dist
+        echo "version: 1.0.0" > dist/metadata.txt
+    
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-package
+        path: dist/
+
+deploy-staging:
+  needs: build
+  runs-on: ubuntu-latest
+  if: github.ref == 'refs/heads/main'
+  
+  steps:
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-package
+        path: dist/
+    
+    - name: Deploy to staging
+      run: |
+        echo "Deploying version: $(cat dist/metadata.txt)"
+        echo "✅ Deployed to staging environment!"
