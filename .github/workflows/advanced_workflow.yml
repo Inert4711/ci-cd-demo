@@ -61,6 +61,7 @@ jobs:
       - name: Build package
         run: |
           echo "Building package..."
+          mkdir -p dist
           tar -czf dist/package.tar.gz .
           echo "version: ${{ github.sha }}" > dist/metadata.txt
       
