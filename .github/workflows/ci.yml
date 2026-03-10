@@ -3,26 +3,21 @@ name: CI Pipeline
 on: [push, pull_request]
 
 jobs:
-  test:
+  test-matrix:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3,9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11']
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Python
+      - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flask pytest
-
       - name: Cache pip dependencies
         uses: actions/cache@v4
         with:
@@ -31,41 +26,49 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
       
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flask pytest
+      
       - name: Run tests
         run: |
           echo "def test_flask_import(): assert __import__('flask')" > test_app.py
           pytest test_app.py -v
-build:
-  runs-on: ubuntu-latest
-  steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Build package
-      run: |
-        echo "Buildings packages..."
-        mkdir -p dist
-        echo "version: 1.0.0" > dist/metadata.txt
-    
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist-package
-        path: dist/
-
-deploy-staging:
-  needs: build
-  runs-on: ubuntu-latest
-  if: github.ref == 'refs/heads/main'
   
-  steps:
-    - name: Download build artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: dist-package
-        path: dist/
+  build:
+    needs: test-matrix
+    runs-on: ubuntu-latest
     
-    - name: Deploy to staging
-      run: |
-        echo "Deploying version: $(cat dist/metadata.txt)"
-        echo "✅ Deployed to staging environment!"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build package
+        run: |
+          echo "Building package..."
+          mkdir -p dist
+          echo "version: ${{ github.sha }}" > dist/metadata.txt
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-package
+          path: dist/
+  
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-package
+          path: dist/
+      
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying version: $(cat dist/metadata.txt)"
+          echo "✅ Deployed to staging environment!"
