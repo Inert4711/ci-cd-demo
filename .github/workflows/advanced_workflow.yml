@@ -36,7 +36,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest test/ -v --cov=app --cov-report=term-missing
+          pytest tests/ -v --cov=app --cov-report=term-missing
         env:
           PYTHONPATH: .
 
