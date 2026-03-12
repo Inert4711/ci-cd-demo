@@ -32,12 +32,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flask pytest
+          pip install -r requirements.txt
 
       - name: Run tests
         run: |
-          echo "def test_flask_import(): assert __import__('flask') > test_app.py"
-          pytest test_app.py -v
+          pytest test/ -v --cov=app --cov-report=term-missing
+        env:
+          PYTHONPATH: .
 
   trivy-scan:
     needs: [test-matrix]
@@ -74,7 +75,6 @@ jobs:
       
       - name: Run Bandit security scan
         run: |
-          # Сканируем текущую директорию рекурсивно
           bandit -r . \
             --severity-level medium \
             --confidence-level high \
@@ -93,12 +93,20 @@ jobs:
           echo "Версия: ${{ github.sha }}"
   
   build:
-    needs: test-matrix
+    needs: [bandit-scan]
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
       
       - name: Build package
         run: |
@@ -114,22 +122,25 @@ jobs:
           path: dist/
   
   deploy-staging:
-    needs: build
+    needs: [build]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: dist-package
           path: dist/
+
       - name: Deploy to staging
         run: |
           echo "Deploying to staging environment..."
           echo "🚀 Deploying version: $(cat dist/metadata.txt)"
-  
+          echo "✅ Deployed to staging environment!"
+
   deploy-prod:
-    needs: deploy-staging
+    needs: [deploy-staging]
     runs-on: ubuntu-latest
     environment:
       name: production
