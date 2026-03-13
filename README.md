@@ -62,7 +62,7 @@ strategy:
 ```
 
 ## Структура проекта
-
+```
 проект/
 ├── app.py
 ├── requirements.txt
@@ -70,4 +70,4 @@ strategy:
 │   └── test_app.py
 └── .github/workflows/
     └── advanced.yml
-
+```
